@@ -53,7 +53,7 @@ defmodule RumblWeb.VideoControllerTest do
       conn =
         post conn, Routes.video_path(conn, :create), video: @invalid_attrs
         assert html_response(conn, 200) =~ "check the errors"
-        assert count_before = video_count()
+        assert ^count_before = video_count()
     end
   end
 
