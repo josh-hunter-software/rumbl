@@ -14,7 +14,10 @@ let Video = {
     let msgContainer = document.getElementById("msg-container")
     let msgInput = document.getElementById("msg-input")
     let postButton = document.getElementById("msg-submit")
-    let vidChannel = socket.channel("videos:" + videoId)
+    let lastSeenId = 0
+    let vidChannel = socket.channel("videos:" + videoId, () => {
+      return {last_seen_id: lastSeenId}
+    })
     
     postButton.addEventListener("click", e => {
       // original msgInput.nodeValue always returned null for some reason
@@ -25,13 +28,16 @@ let Video = {
     })
 
     vidChannel.on("new_annotation", (resp) => {
+      lastSeenId = resp.id
       this.renderAnnotation(msgContainer, resp)
     })
 
     vidChannel.join()
       // p 202, 215
-      .receive("ok", ({annotations}) => {
-        annotations.forEach( ann => this.renderAnnotation(msgContainer, ann ))
+      .receive("ok", resp => {
+        let ids = resp.annotations.map(ann => ann.id)
+        if(ids.length > 0){ lastSeenId = Math.max(...ids) }
+        this.scheduleMessages(msgContainer, resp.annotations)
       })
       .receive("error", reason => console.log("join failed", reason))
   },
@@ -52,6 +58,32 @@ let Video = {
     `
     msgContainer.appendChild(template)
     msgContainer.scrollTop = msgContainer.scrollHeight
+  },
+  
+  scheduleMessages(msgContainer, annotations) {
+    clearTimeout(this.scheduleTimer)
+    this.schedulerTimer = setTimeout(() => {
+      let ctime = Player.getCurrentTime()
+      let remaining = this.renderAtTime(annotations, ctime, msgContainer)
+      this.scheduleMessages(msgContainer, remaining)
+    }, 1000)
+  },
+
+  renderAtTime(annotations, seconds, msgContainer) {
+    return annotations.filter( ann => {
+      if(ann.at > seconds) {
+        return true
+      } else {
+        this.renderAnnotation(msgContainer, ann)
+        false
+      }
+    })
+  },
+
+  formatTime(at){
+    let date = new Date(null)
+    date.setSeconds(att / 1000)
+    return date.toISOString().substr(14, 5)
   }
 }
 export default Video
